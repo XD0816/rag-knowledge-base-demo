@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>企业智能知识库问答平台</title>
+<meta name="description" content="基于 RAG 架构的政企内部知识库智能问答系统演示" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a4fb5'/%3E%3Cpath d='M9 21V11l7-3 7 3v10l-7 3-7-3z' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+<!-- 首屏防闪烁 -->
+<style>
+  html, body { margin: 0; background: #f4f7fc; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, -apple-system, sans-serif; }
+</style>
+
+<!-- TailwindCSS（本地内置，离线可用） -->
+<script src="assets/vendor/tailwind.min.js"></script>
+<script>
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
+              400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+              800: '#1e40af', 900: '#0a2447'
+            },
+            ink: {
+              900: '#0f172a', 700: '#334155', 500: '#64748b', 400: '#94a3b8', 300: '#cbd5e1'
+            }
+          }
+        }
+      }
+    };
+  }
+</script>
+
+<link rel="stylesheet" href="assets/css/app.css" />
+</head>
+
+<body>
+<div class="app-shell">
+
+  <!-- ============================ 顶部导航 ============================ -->
+  <header class="app-header">
+    <div class="flex items-center gap-3">
+      <div class="brand-badge">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l8 4v6c0 4.4-3.4 7.6-8 8-4.6-.4-8-3.6-8-8V7l8-4z"/>
+          <path d="M9 11.5l2.2 2.2L15.5 9.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">企业智能知识库问答平台</div>
+        <div class="brand-sub">ENTERPRISE KNOWLEDGE BASE · RAG INTELLIGENT Q&amp;A</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="hidden md:flex items-center gap-4">
+        <span class="metric-chip">文档 <b id="hdrDocCount">0</b></span>
+        <span class="metric-chip">切片 <b id="hdrChunkCount">0</b></span>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot is-idle" id="statusDot"></span>
+        <span id="statusLabel">知识库为空</span>
+      </div>
+      <button id="btnSettings" class="w-8 h-8 rounded-lg grid place-items-center text-white/70 hover:text-white hover:bg-white/10 transition" title="模型设置">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================ 主体区域 ============================ -->
+  <div class="app-main">
+
+    <!-- ---------------------------- 左侧知识库 ---------------------------- -->
+    <aside class="sidebar">
+
+      <div class="p-4 pb-3">
+        <div class="segmented">
+          <button id="tabKb" class="active">知识库</button>
+          <button id="tabHistory">历史问答</button>
+        </div>
+      </div>
+
+      <!-- 知识库面板 -->
+      <div id="panelKb" class="flex-1 min-h-0 flex flex-col">
+
+        <div class="px-4 pb-3">
+          <div id="dropZone" class="upload-zone">
+            <div class="upload-icon">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="text-[13px] font-medium text-ink-900">点击或拖拽文件到此处上传</div>
+            <div class="text-[11.5px] text-ink-400 mt-1">支持 PDF / Word(docx) / TXT，单文件 ≤ 20MB</div>
+            <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.txt,.md" />
+          </div>
+
+          <button id="btnSamples"
+            class="w-full mt-2 h-8 rounded-[9px] text-[12px] text-brand-700 bg-brand-50 border border-brand-100 hover:bg-brand-100 hover:border-brand-200 transition flex items-center justify-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
+            </svg>
+            一键载入示例文档（3 份制度）
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between px-4 pb-2">
+          <span class="text-[11px] font-semibold text-ink-500 tracking-wider">已入库文档</span>
+          <button id="btnClearKb" class="text-[11px] text-ink-400 hover:text-red-500 transition">清空</button>
+        </div>
+
+        <div class="flex-1 min-h-0 overflow-y-auto scroll-thin px-4 pb-3">
+          <div id="docList" class="space-y-2"></div>
+        </div>
+
+        <div class="p-4 pt-2 border-t border-[#eef3fa]">
+          <div class="stats-card">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+              </svg>
+              <span class="text-[11px] font-semibold text-ink-500 tracking-wider">知识库概览</span>
+            </div>
+            <div class="stat-row"><span>文档数量</span><b id="statDocs">0</b></div>
+            <div class="stat-row"><span>切片总数</span><b id="statChunks">0</b></div>
+            <div class="stat-row"><span>字符总量</span><b id="statChars">0</b></div>
+            <div class="stat-row"><span>向量维度</span><b id="statDim">1024 维</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史面板 -->
+      <div id="panelHistory" class="flex-1 min-h-0 flex-col" style="display:none">
+        <div class="flex items-center justify-between px-4 pb-2">
+          <span class="text-[11px] font-semibold text-ink-500 tracking-wider">问答历史</span>
+          <button id="btnClearHistory" class="text-[11px] text-ink-400 hover:text-red-500 transition">清空</button>
+        </div>
+        <div class="flex-1 min-h-0 overflow-y-auto scroll-thin px-4 pb-4">
+          <div id="historyList" class="space-y-2"></div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ---------------------------- 右侧对话区 ---------------------------- -->
+    <section class="chat-pane">
+
+      <div class="chat-toolbar">
+        <div class="flex items-center gap-2.5">
+          <span class="assistant-avatar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/>
+              <path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>
+            </svg>
+          </span>
+          <span class="assistant-name">智能知识库助手</span>
+          <span class="tag-soft">RAG</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btnExport" class="tool-btn" title="导出当前对话为 Markdown">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            导出
+          </button>
+          <button id="btnClearChat" class="tool-btn" title="清空当前对话">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            清空对话
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 min-h-0 relative flex flex-col">
+        <div class="messages scroll-thin" id="chatScroll">
+          <div id="messageList"></div>
+        </div>
+
+        <!-- 空状态 -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">
+            <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l8 4v6c0 4.4-3.4 7.6-8 8-4.6-.4-8-3.6-8-8V7l8-4z"/>
+              <path d="M9 11.5l2.2 2.2L15.5 9.5"/>
+            </svg>
+          </div>
+          <div class="empty-title">开始你的知识问答</div>
+          <div class="empty-desc">
+            上传企业制度文档后，系统将自动完成<span class="text-brand-700 font-medium">文本切片 → 向量化 → 索引构建</span>。<br/>
+            提问时先检索最相关的文档片段，再基于片段生成答案，并标注<span class="text-brand-700 font-medium">可溯源的引用来源</span>。
+          </div>
+
+          <div class="suggest-grid">
+            <div class="suggest-item" data-suggest="出差住宿标准是多少？">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>出差住宿标准是多少？</span>
+            </div>
+            <div class="suggest-item" data-suggest="差旅费报销需要提交哪些材料？">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>差旅费报销需要提交哪些材料？</span>
+            </div>
+            <div class="suggest-item" data-suggest="密码策略有哪些具体要求？">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>密码策略有哪些具体要求？</span>
+            </div>
+            <div class="suggest-item" data-suggest="新员工试用期是多长时间？">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>新员工试用期是多长时间？</span>
+            </div>
+          </div>
+
+          <div class="mt-4 text-[11.5px] text-ink-400">
+            提示：点击左侧「一键载入示例文档」，可立即体验完整 RAG 流程
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区 -->
+      <div class="composer-wrap">
+        <div class="composer">
+          <textarea id="input" rows="1" placeholder="请输入您的问题，例如：出差住宿标准是多少？"></textarea>
+          <button id="btnSend" class="send-btn" disabled>
+            发送
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="composer-hint">
+          <span>回答基于已上传文档生成，并标注引用来源，可在引用卡片中核对原文</span>
+          <span class="hidden md:inline"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+        </div>
+      </div>
+
+    </section>
+  </div>
+</div>
+
+<!-- ============================ 拖拽遮罩 ============================ -->
+<div class="drop-overlay" id="dropOverlay">
+  <div class="drop-overlay-inner">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 12px;display:block">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    松开鼠标即可上传至知识库
+  </div>
+</div>
+
+<!-- ============================ Toast ============================ -->
+<div class="toast-stack" id="toastStack"></div>
+
+<!-- ============================ 确认弹窗 ============================ -->
+<div class="modal-mask" id="confirmModal">
+  <div class="modal-card" style="max-width:420px">
+    <div class="modal-head" id="confirmTitle">确认操作</div>
+    <div class="modal-body">
+      <p id="confirmText" class="text-[13px] leading-relaxed text-ink-500 m-0"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="btnConfirmCancel">取消</button>
+      <button class="btn-primary" id="btnConfirmOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 设置弹窗 ============================ -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal-card" style="max-width:500px">
+    <div class="modal-head flex items-center gap-2">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      生成引擎设置
+    </div>
+    <div class="modal-body space-y-4">
+      <div class="p-3 rounded-[10px] bg-brand-50 border border-brand-100 text-[12px] leading-relaxed text-brand-700">
+        默认使用<span class="font-semibold">本地抽取式生成引擎</span>，完全离线、零配置、不编造内容。
+        也可接入任意 OpenAI 兼容大模型（如 GPT / DeepSeek / Qwen），失败时自动降级回本地引擎。
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-[13px] font-medium text-ink-900">启用大模型生成</div>
+          <div class="text-[11.5px] text-ink-400 mt-0.5">需要浏览器可访问的 API 地址</div>
+        </div>
+        <div class="switch" id="setUseRemote"></div>
+      </div>
+
+      <div>
+        <label class="form-label">API Base URL</label>
+        <input class="form-input" id="setBase" placeholder="https://api.openai.com/v1" />
+      </div>
+      <div>
+        <label class="form-label">API Key</label>
+        <input class="form-input" id="setKey" type="password" placeholder="sk-..." />
+      </div>
+      <div>
+        <label class="form-label">模型名称</label>
+        <input class="form-input" id="setModel" placeholder="gpt-4o-mini / deepseek-chat" />
+      </div>
+
+      <div class="text-[11.5px] text-ink-400 leading-relaxed">
+        说明：密钥仅保存在浏览器 localStorage，不会上传到任何第三方服务。
+        若接口未开启 CORS，浏览器直连会失败，此时请保持关闭使用本地引擎。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="btnCancelSettings">取消</button>
+      <button class="btn-primary" id="btnSaveSettings">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 依赖脚本 ============================ -->
+<script src="assets/vendor/pdf.min.js"></script>
+<script src="assets/vendor/mammoth.browser.min.js"></script>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/text.js"></script>
+<script src="assets/js/embedding.js"></script>
+<script src="assets/js/parsers.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/samples.js"></script>
+<script src="assets/js/rag.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
