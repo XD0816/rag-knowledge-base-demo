@@ -4,6 +4,8 @@
 
 **纯前端实现 · 零后端 · 零安装 · 双击即用**
 
+**在线演示**：https://xd0816.github.io/rag-knowledge-base-demo/
+
 ---
 
 ## 快速开始
